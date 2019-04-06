@@ -1,6 +1,6 @@
 # FastqCount
 
-Summary fastq Total Reads, Total Bases, N Bases, Q20, Q30, GC.
+Fastq reads, bases, N Bases, Q20, Q30, GC summary with high performance
 
 **Usage**:
 
@@ -14,15 +14,7 @@ summary multipy files:
 
 **Output** example (tsv):
 
-| Total Reads | Total Bases | N Bases | Q20 | Q30 | GC |
+| Reads | Bases | N-bases | Q20 | Q30 | GC |
 | ----------- | ----------- | ------- | --- | --- | -- |
-| 8781961 (8.78 M) | 1317294150 (1.32 G) | 0.00% | 72.00% | 62.00% | 45.00% |
-
-
-Above results (work with "pigz -dc") timing:
-
-real	0m11.865s
-
-user	0m23.540s
-
-sys	0m3.040s
+| 1.00 M | 0.15 G | 0.00% | 96.69% | 91.59% | 44.20% |
+| 1000000 M | 150000000 G | 5099 | 145037238 | 137378352 | 66294072 |
