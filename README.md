@@ -4,13 +4,16 @@ Fastq reads, bases, N Bases, Q20, Q30, GC summary with high performance
 
 **Usage**:
 
-summary single fastq(.gz) file:
-```./FastqCount input.fastq```
+  $ FastqCount  [-phred value]  [-o tsv]  <input1.fastq input2.fastq.gz>
+  output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
+  note:
+    1. When input is -, read standard input;
+    2. "pigz -dc *.fastq.gz | FastqCount -" is recommended for gzipped file(s).
 
-summary multipy files:
-```pigz -dc R1.fastq.gz R2.fastq.gz | ./FastqCount -```
-
-**Note**: pipeline stdin make FastqCount faster with gzipped file(s).
+  -o string
+    	output summary to a tsv file, default: stdout
+  -phred int
+    	set phred value (default 33)
 
 **Output** example (tsv):
 
