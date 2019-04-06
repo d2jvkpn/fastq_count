@@ -14,13 +14,9 @@ Fastq reads, bases, N Bases, Q20, Q30, GC summary with high performance
     
   2. "pigz -dc *.fastq.gz | FastqCount -" is recommended for gzipped file(s).
 
-  -o string
+  -o string: output summary to a tsv file, default: stdout
   
-  output summary to a tsv file, default: stdout
-  
-  -phred int
-  
-  set phred value (default 33)
+  -phred int: set phred value (default 33)
 
 **Output** example (tsv):
 
