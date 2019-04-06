@@ -4,7 +4,7 @@ Fastq reads, bases, N Bases, Q20, Q30, GC summary with high performance
 
 **Usage**:
 
-  $ FastqCount  [-phred value]  [-o tsv]  <input1.fastq input2.fastq.gz>
+  $ FastqCount  [-phred value]  [-o out.tsv]  <input1.fastq input2.fastq.gz>
   
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   
