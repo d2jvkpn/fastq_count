@@ -151,8 +151,13 @@ type CmdInput struct {
 }
 
 func (ci *CmdInput) Close() {
-	ci.Reader.Close()
-	ci.File.Close()
+	if ci.Reader != nil {
+		ci.Reader.Close()
+	}
+
+	if ci.File != nil {
+		ci.File.Close()
+	}
 }
 
 func NewCmdInput(name string) (ci *CmdInput, err error) {
