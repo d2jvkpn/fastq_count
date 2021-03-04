@@ -1,4 +1,4 @@
-# castq_count
+# fastq_count
 
 counting fastq(https://en.wikipedia.org/wiki/FASTQ_format) reads, bases, N Bases, Q20, Q30, GC
 with high performance
