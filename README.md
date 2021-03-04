@@ -5,9 +5,9 @@ with high performance
 
 
 #### 1. Installation
-`bash
+```bash
 go install github.com/d2jvkpn/fastq_count
-`
+```
 
 #### 2. Usage
 
