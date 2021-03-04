@@ -4,145 +4,203 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	gzip "github.com/klauspost/pgzip" //"compress/gzip"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	// "sync/atomic"
+
+	gzip "github.com/klauspost/pgzip" //"compress/gzip"
 )
 
 const USAGE = `
-Usage: FastqCount  [-phred value]  [-o tsv]  <input1.fastq input2.fastq.gz>
+Usage: fastq_count  [-phred value]  [-o tsv]  <input1.fastq input2.fastq.gz>
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   note:
     1. When input is -, read standard input;
-    2. "pigz -dc *.fastq.gz | FastqCount -" is recommended for gzipped file(s).
+    2. "pigz -dc *.fastq.gz | fastq_count -" is recommended for gzipped file(s).
 `
 
 const LISENSE = `
 author: d2jvkpn
-version: 0.9.3
-release: 2019-04-02
-project: https://github.com/d2jvkpn/FastqCount
+version: 1.0.0
+release: 2021-03-04
+project: https://github.com/d2jvkpn/fastq_count
 lisense: GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html)
 `
 
 func main() {
-	output := flag.String("o", "", "output summary to a tsv file, default: stdout")
-	phred := flag.Int("phred", 33, "set phred value")
+	var (
+		output string
+		inputs []string
+		err    error
+		ct     *Counter
+	)
+
+	ct = new(Counter)
+	flag.StringVar(&output, "output", "", "output summary to a tsv file, default: stdout")
+	flag.IntVar(&ct.Phred, "phred", 33, "set phred value")
 
 	flag.Usage = func() {
 		fmt.Println(USAGE)
 		flag.PrintDefaults()
 		fmt.Println(LISENSE)
 	}
-
 	flag.Parse()
-	inputs := flag.Args()
 
+	inputs = flag.Args()
 	if len(os.Args) == 1 {
 		flag.Usage()
 		os.Exit(2)
 	}
 
-	var err error
-	var wt io.Writer
-	ch := make(chan [2]string, 10000)
-
-	ct := new(Counter)
+	/// run
+	ch := make(chan [2]string, 1000)
+	wg := new(sync.WaitGroup)
 
 	go func() {
-		for _, s := range inputs {
-			log.Printf("FastqCount read sequences from %s\n", s)
-
-			ci, err := NewCmdInput(s)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer ci.Close()
-
-			for {
-				var blk [2]string
-				ci.Scanner.Scan()
-				ci.Scanner.Scan()
-				blk[0] = ci.Scanner.Text()
-				ci.Scanner.Scan()
-				if !ci.Scanner.Scan() {
-					break
-				}
-				blk[1] = ci.Scanner.Text()
-				ch <- blk
-			}
+		for i := range inputs {
+			wg.Add(1)
+			input := inputs[i]
+			go ReadBlocks(input, ch, wg)
 		}
+
+		wg.Wait()
 		close(ch)
 	}()
 
+	ct.Counting(ch, nil)
+
+	if err = ct.Output(output); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func ReadBlocks(input string, ch chan<- [2]string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	var (
+		err error
+		blk [2]string
+		ci  *CmdInput
+	)
+
+	log.Printf("fastq_count read sequences from %s\n", input)
+	if ci, err = NewCmdInput(input); err != nil {
+		log.Println(err)
+		return
+	}
+
+	for {
+		ci.Scanner.Scan()
+		ci.Scanner.Scan()
+		blk[0] = ci.Scanner.Text()
+		ci.Scanner.Scan()
+		if !ci.Scanner.Scan() {
+			break
+		}
+		blk[1] = ci.Scanner.Text()
+		ch <- blk
+	}
+
+	ci.Close()
+}
+
+/// Counter
+type Counter struct {
+	Phred int
+
+	RN  int64 // read number
+	BN  int64 // base number
+	Q20 int64 // Q20 number
+	Q30 int64 // Q30 number
+	GC  int64 // base number of G and C
+	NN  int64 // base number of N
+}
+
+func (ct *Counter) String() string {
+	return fmt.Sprintf(
+		"Reads\tBases\tN-bases\tQ20\tQ30\tGC\n%d\t%d\t%d\t%d\t%d\t%d",
+		ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC,
+	)
+}
+
+func (ct *Counter) Write(wt io.Writer) {
+	fmt.Fprintln(wt, "Reads\tBases\tN-bases\tQ20\tQ30\tGC")
+
+	fmt.Fprintf(wt, "%.2fM\t%.2fG\t%.2f%%\t%.2f%%\t%.2f%%\t%.2f%%\n",
+		float64(ct.RN)/float64(1e+6),
+		float64(ct.BN)/float64(1e+9),
+		float64(ct.NN*100)/float64(ct.BN),
+		float64(ct.Q20*100)/float64(ct.BN),
+		float64(ct.Q30*100)/float64(ct.BN),
+		float64(ct.GC*100)/float64(ct.BN),
+	)
+
+	fmt.Fprintf(wt, "%d\t%d\t%d\t%d\t%d\t%d\n", ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC)
+}
+
+func (ct *Counter) Counting(ch <-chan [2]string, wg *sync.WaitGroup) {
+	defer func() {
+		if wg != nil {
+			wg.Done()
+		}
+	}()
+
+	var v int64
+
 	for k := range ch {
 		ct.RN++
-		ct.BN += len(k[0])
-		ct.NN += strings.Count(k[0], "N")
-		ct.GC += strings.Count(k[0], "G") + strings.Count(k[0], "C")
+		v = int64(len(k[0]))
+		ct.BN += v
+		// atomic.AddInt64(&ct.BN, v)
+
+		v = int64(strings.Count(k[0], "N"))
+		ct.NN += v
+
+		v = int64(strings.Count(k[0], "G") + strings.Count(k[0], "C"))
+		ct.GC += v
 
 		for _, q := range k[1] {
-			if int(q)-*phred >= 20 {
+			if int(q)-ct.Phred >= 20 {
 				ct.Q20++
 			} else {
 				continue
 			}
-			if int(q)-*phred >= 30 {
+			if int(q)-ct.Phred >= 30 {
 				ct.Q30++
 			}
 		}
 	}
+}
 
-	wt = os.Stdout
+func (ct *Counter) Output(output string) (err error) {
+	defer func() {
+		ct.Write(os.Stdout)
+	}()
 
-	if *output != "" {
-		err = os.MkdirAll(filepath.Dir(*output), 0755)
-		if err != nil {
-			log.Println(err)
-		} else {
-			wt, err = os.Create(*output)
-			if err != nil {
-				log.Println(err)
-				wt = os.Stdout
-			}
-		}
+	if output == "" {
+		return nil
 	}
 
-	// fmt.Println(ct)
-
-	fmt.Fprintln(wt, "Reads\tBases\tN-bases\tQ20\tQ30\tGC")
-
-	fmt.Fprintf(wt, "%.2fM\t%.2fG\t%.2f%%\t%.2f%%\t%.2f%%\t%.2f%%\n",
-		float64(ct.RN)/float64(1E+6),
-		float64(ct.BN)/float64(1E+9),
-		float64(ct.NN*100)/float64(ct.BN),
-		float64(ct.Q20*100)/float64(ct.BN),
-		float64(ct.Q30*100)/float64(ct.BN),
-		float64(ct.GC*100)/float64(ct.BN))
-
-	fmt.Fprintf(wt, "%d\t%d\t%d\t%d\t%d\t%d\n", ct.RN, ct.BN, ct.NN,
-		ct.Q20, ct.Q30, ct.GC)
-
-	if *output != "" {
-		log.Printf("Saved FastqCount result to %s\n", *output)
+	if err = os.MkdirAll(filepath.Dir(output), 0755); err != nil {
+		return err
 	}
+
+	var file *os.File
+	if file, err = os.Create(output); err != nil {
+		return err
+	}
+
+	ct.Write(file)
+	file.Close()
+
+	return nil
 }
 
-func (ct *Counter) String() (s string) {
-	s = "Reads\tBases\tN-bases\tQ20\tQ30\tGC\n"
-	s += fmt.Sprintf("%d\t%d\t%d\t%d\t%d\t%d", 
-		ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC)
-
-	return
-}
-
-type Counter struct {
-	RN, BN, Q20, Q30, GC, NN int
-}
-
+/// CmdInput
 type CmdInput struct {
 	Name    string
 	File    *os.File
@@ -164,24 +222,22 @@ func NewCmdInput(name string) (ci *CmdInput, err error) {
 	ci = new(CmdInput)
 	ci.Name = name
 
-	if ci.Name == "-" {
+	if ci.Name == "-" { // from stdin
 		ci.Scanner = bufio.NewScanner(os.Stdin)
 		return
 	}
 
-	ci.File, err = os.Open(ci.Name)
-
-	if err != nil {
+	if ci.File, err = os.Open(ci.Name); err != nil {
 		return
 	}
 
-	if strings.HasSuffix(ci.Name, ".gz") {
+	if strings.HasSuffix(ci.Name, ".gz") { // read gzipped file
 		if ci.Reader, err = gzip.NewReader(ci.File); err != nil {
 			return
 		}
 		ci.Scanner = bufio.NewScanner(ci.Reader)
 	} else {
-		ci.Scanner = bufio.NewScanner(ci.File)
+		ci.Scanner = bufio.NewScanner(ci.File) // read text file
 	}
 
 	return
