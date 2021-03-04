@@ -16,7 +16,7 @@ import (
 )
 
 const USAGE = `
-Usage: fastq_count  [-phred value]  [-o tsv]  <input1.fastq input2.fastq.gz>
+Usage: fastq_count  [-phred value]  [-out tsv]  <input1.fastq input2.fastq.gz>
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   note:
     1. When input is -, read standard input;
