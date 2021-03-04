@@ -40,7 +40,7 @@ func main() {
 	)
 
 	ct = new(Counter)
-	flag.StringVar(&output, "output", "", "output summary to a tsv file, default: stdout")
+	flag.StringVar(&output, "out", "", "output summary to a tsv file, default: stdout")
 	flag.IntVar(&ct.Phred, "phred", 33, "set phred value")
 
 	flag.Usage = func() {

@@ -1,18 +1,18 @@
-# FastqCount
+# castq_count
 
-Fastq reads, bases, N Bases, Q20, Q30, GC summary with high performance
+counting fastq(https://en.wikipedia.org/wiki/FASTQ_format) reads, bases, N Bases, Q20, Q30, GC
+with high performance
 
 **Usage**:
 
-  $ FastqCount  [-phred value]  [-o out.tsv]  <input1.fastq input2.fastq.gz>
-  
+  $ fastq_count  [-phred value]  [-out out.tsv]  <input1.fastq input2.fastq.gz>
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   
   note:
   
   1. When input is -, read standard input;
     
-  2. "pigz -dc *.fastq.gz | FastqCount -" is recommended for gzipped file(s).
+  2. "pigz -dc *.fastq.gz | fastq_count -" is recommended for gzipped file(s).
 
   -o string: output summary to a tsv file, default: stdout
   
