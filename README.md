@@ -5,20 +5,20 @@ with high performance
 
 #### 1. Usage
 
-  $ fastq_count  [-phred value]  [-out out.tsv]  <input1.fastq input2.fastq.gz>
+$ fastq_count  [-phred value]  [-out out.tsv]  <input1.fastq input2.fastq.gz>
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   
-  note:
-  
-  1. When input is -, read standard input;
-    
-  2. "pigz -dc *.fastq.gz | fastq_count -" is recommended for gzipped file(s).
+Note:
 
-  -o string: output summary to a tsv file, default: stdout
-  
-  -phred int: set phred value (default 33)
+- When input is -, read standard input;
 
-**Output** example (tsv):
+- "pigz -dc *.fastq.gz | fastq_count -" is recommended for gzipped file(s).
+
+    -out string: output summary to a tsv file, default: stdout
+
+    -phred int: set phred value (default 33)
+
+- output example (tsv):
 
 | Reads | Bases | N-bases | Q20 | Q30 | GC |
 | ----------- | ----------- | ------- | --- | --- | -- |
