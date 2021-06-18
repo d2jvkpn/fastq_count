@@ -11,7 +11,7 @@ go install github.com/d2jvkpn/fastq_count
 
 #### 2. Usage
 
-$ fastq_count  [-phred value]  [-out out.tsv]  <input1.fastq input2.fastq.gz>
+$ fastq_count  [-phred value]  [-output out.tsv]  <input1.fastq input2.fastq.gz>
   output (tsv) header: Total reads  Total bases  N bases  Q20  Q30  GC
   
 Note:
@@ -20,7 +20,7 @@ Note:
 
 - "pigz -dc *.fastq.gz | fastq_count -" is recommended for gzipped file(s).
 
-    -out string: output summary to a tsv file, default: stdout
+    -output string: output summary to a tsv file, default: stdout
 
     -phred int: set phred value (default 33)
 

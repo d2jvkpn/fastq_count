@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -25,23 +26,25 @@ Usage: fastq_count  [-phred value]  [-out tsv]  <input1.fastq input2.fastq.gz>
 
 const LISENSE = `
 author: d2jvkpn
-version: 1.0.0
-release: 2021-03-04
+version: 1.1.0
+release: 2021-06-18
 project: https://github.com/d2jvkpn/fastq_count
 lisense: GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html)
 `
 
 func main() {
 	var (
-		output string
-		inputs []string
-		err    error
-		ct     *Counter
+		jsonFormat bool
+		output     string
+		inputs     []string
+		err        error
+		ct         *Counter
 	)
 
 	ct = new(Counter)
-	flag.StringVar(&output, "out", "", "output summary to a tsv file, default: stdout")
+	flag.StringVar(&output, "output", "", "save result to file, default: stdout")
 	flag.IntVar(&ct.Phred, "phred", 33, "set phred value")
+	flag.BoolVar(&jsonFormat, "json_format", false, "output json format")
 
 	flag.Usage = func() {
 		fmt.Println(USAGE)
@@ -73,7 +76,7 @@ func main() {
 
 	ct.Counting(ch, nil)
 
-	if err = ct.Output(output); err != nil {
+	if err = ct.Output(output, jsonFormat); err != nil {
 		log.Fatalln(err)
 	}
 }
@@ -110,26 +113,31 @@ func ReadBlocks(input string, ch chan<- [2]string, wg *sync.WaitGroup) {
 
 /// Counter
 type Counter struct {
-	Phred int
+	Phred int `json:"phred"`
 
-	RN  int64 // read number
-	BN  int64 // base number
-	Q20 int64 // Q20 number
-	Q30 int64 // Q30 number
-	GC  int64 // base number of G and C
-	NN  int64 // base number of N
+	RN  int64 `json:"reads"` // read number
+	BN  int64 `json:"bases"` // base number
+	NN  int64 `json:"n"`     // base number of N
+	GC  int64 `json:"gc"`    // base number of G and C
+	Q20 int64 `json:"q20"`   // Q20 number
+	Q30 int64 `json:"q30"`   // Q30 number
 }
 
 func (ct *Counter) String() string {
 	return fmt.Sprintf(
-		"Reads\tBases\tN-bases\tQ20\tQ30\tGC\n%d\t%d\t%d\t%d\t%d\t%d",
-		ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC,
+		"Reads\tBases\tN-bases\tGC\tQ20\tQ30\n%d\t%d\t%d\t%d\t%d\t%d",
+		ct.RN, ct.BN, ct.NN, ct.GC, ct.Q20, ct.Q30,
 	)
 }
 
-func (ct *Counter) Write(wt io.Writer) {
-	fmt.Fprintln(wt, "Reads\tBases\tN-bases\tQ20\tQ30\tGC")
+func (ct *Counter) Write(wt io.Writer, jsonFormat bool) {
+	if jsonFormat {
+		bts, _ := json.Marshal(ct)
+		fmt.Fprintf(wt, string(bts)+"\n")
+		return
+	}
 
+	fmt.Fprintln(wt, "Reads\tBases\tN-bases\tGC\tQ20\tQ30")
 	fmt.Fprintf(wt, "%.2fM\t%.2fG\t%.2f%%\t%.2f%%\t%.2f%%\t%.2f%%\n",
 		float64(ct.RN)/float64(1e+6),
 		float64(ct.BN)/float64(1e+9),
@@ -176,12 +184,9 @@ func (ct *Counter) Counting(ch <-chan [2]string, wg *sync.WaitGroup) {
 	}
 }
 
-func (ct *Counter) Output(output string) (err error) {
-	defer func() {
-		ct.Write(os.Stdout)
-	}()
-
+func (ct *Counter) Output(output string, jsonFormat bool) (err error) {
 	if output == "" {
+		ct.Write(os.Stdout, jsonFormat)
 		return nil
 	}
 
@@ -194,7 +199,7 @@ func (ct *Counter) Output(output string) (err error) {
 		return err
 	}
 
-	ct.Write(file)
+	ct.Write(file, jsonFormat)
 	file.Close()
 
 	return nil
