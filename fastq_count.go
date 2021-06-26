@@ -41,7 +41,7 @@ func main() {
 		ct         *Counter
 	)
 
-	ct = new(Counter)
+	ct = NewCounter()
 	flag.StringVar(&output, "output", "", "save result to file, default: stdout")
 	flag.IntVar(&ct.Phred, "phred", 33, "set phred value")
 	flag.BoolVar(&jsonFormat, "json_format", false, "output json format")
@@ -60,33 +60,29 @@ func main() {
 	}
 
 	/// run
-	ch := make(chan [2]string, 1000)
 	wg := new(sync.WaitGroup)
-
 	go func() {
 		for i := range inputs {
 			wg.Add(1)
 			input := inputs[i]
-			go ReadBlocks(input, ch, wg)
+			go ReadBlocks(input, ct, wg)
 		}
 
 		wg.Wait()
-		close(ch)
 	}()
 
-	ct.Counting(ch, nil)
+	ct.Counting()
 
 	if err = ct.Output(output, jsonFormat); err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func ReadBlocks(input string, ch chan<- [2]string, wg *sync.WaitGroup) {
+func ReadBlocks(input string, ct *Counter, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var (
 		err error
-		blk [2]string
 		ci  *CmdInput
 	)
 
@@ -96,17 +92,21 @@ func ReadBlocks(input string, ch chan<- [2]string, wg *sync.WaitGroup) {
 		return
 	}
 
-	for {
-		ci.Scanner.Scan()
-		ci.Scanner.Scan()
-		blk[0] = ci.Scanner.Text()
-		ci.Scanner.Scan()
-		if !ci.Scanner.Scan() {
-			break
+	i := 0
+	for ci.Scanner.Scan() {
+		i++
+		if i%4 == 2 {
+			text := ci.Scanner.Text()
+			ct.ch1 <- text
+			ct.ch2 <- text
+		} else if i%4 == 0 {
+			ct.ch3 <- ci.Scanner.Text()
 		}
-		blk[1] = ci.Scanner.Text()
-		ch <- blk
 	}
+
+	close(ct.ch1)
+	close(ct.ch2)
+	close(ct.ch3)
 
 	ci.Close()
 }
@@ -121,6 +121,19 @@ type Counter struct {
 	GC  int64 `json:"gc"`    // base number of G and C
 	Q20 int64 `json:"q20"`   // Q20 number
 	Q30 int64 `json:"q30"`   // Q30 number
+
+	ch1 chan string `json:"-"`
+	ch2 chan string `json:"-"`
+	ch3 chan string `json:"-"`
+}
+
+func NewCounter() (counter *Counter) {
+	counter = new(Counter)
+	counter.ch1 = make(chan string, 10)
+	counter.ch2 = make(chan string, 10)
+	counter.ch3 = make(chan string, 10)
+
+	return counter
 }
 
 func (ct *Counter) String() string {
@@ -142,46 +155,51 @@ func (ct *Counter) Write(wt io.Writer, jsonFormat bool) {
 		float64(ct.RN)/float64(1e+6),
 		float64(ct.BN)/float64(1e+9),
 		float64(ct.NN*100)/float64(ct.BN),
+		float64(ct.GC*100)/float64(ct.BN),
 		float64(ct.Q20*100)/float64(ct.BN),
 		float64(ct.Q30*100)/float64(ct.BN),
-		float64(ct.GC*100)/float64(ct.BN),
 	)
 
 	fmt.Fprintf(wt, "%d\t%d\t%d\t%d\t%d\t%d\n", ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC)
 }
 
-func (ct *Counter) Counting(ch <-chan [2]string, wg *sync.WaitGroup) {
-	defer func() {
-		if wg != nil {
-			wg.Done()
+func (ct *Counter) Counting() {
+	wg := new(sync.WaitGroup)
+	wg.Add(3)
+
+	go func() {
+		for k := range ct.ch1 {
+			ct.RN++
+			ct.BN += int64(len(k))
 		}
+		wg.Done()
 	}()
 
-	var v int64
+	go func() {
+		for k := range ct.ch2 {
+			ct.NN += int64(strings.Count(k, "N"))
+			ct.GC += int64(strings.Count(k, "G") + strings.Count(k, "C"))
+		}
+		wg.Done()
+	}()
 
-	for k := range ch {
-		ct.RN++
-		v = int64(len(k[0]))
-		ct.BN += v
-		// atomic.AddInt64(&ct.BN, v)
-
-		v = int64(strings.Count(k[0], "N"))
-		ct.NN += v
-
-		v = int64(strings.Count(k[0], "G") + strings.Count(k[0], "C"))
-		ct.GC += v
-
-		for _, q := range k[1] {
-			if int(q)-ct.Phred >= 20 {
-				ct.Q20++
-			} else {
-				continue
-			}
-			if int(q)-ct.Phred >= 30 {
-				ct.Q30++
+	go func() {
+		for k := range ct.ch3 {
+			for _, q := range k {
+				if int(q)-ct.Phred >= 20 {
+					ct.Q20++
+				} else {
+					continue
+				}
+				if int(q)-ct.Phred >= 30 {
+					ct.Q30++
+				}
 			}
 		}
-	}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
 
 func (ct *Counter) Output(output string, jsonFormat bool) (err error) {
