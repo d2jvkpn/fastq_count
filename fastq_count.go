@@ -160,7 +160,7 @@ func (ct *Counter) Write(wt io.Writer, jsonFormat bool) {
 		float64(ct.Q30*100)/float64(ct.BN),
 	)
 
-	fmt.Fprintf(wt, "%d\t%d\t%d\t%d\t%d\t%d\n", ct.RN, ct.BN, ct.NN, ct.Q20, ct.Q30, ct.GC)
+	fmt.Fprintf(wt, "%d\t%d\t%d\t%d\t%d\t%d\n", ct.RN, ct.BN, ct.NN, ct.GC, ct.Q20, ct.Q30)
 }
 
 func (ct *Counter) Counting() {
