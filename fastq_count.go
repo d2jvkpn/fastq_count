@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	// "sync/atomic"
 
 	gzip "github.com/klauspost/pgzip" //"compress/gzip"
@@ -32,12 +33,21 @@ project: https://github.com/d2jvkpn/fastq_count
 lisense: GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html)
 `
 
+const (
+	RFC3339ms = "2006-01-02T15:04:05.000Z07:00"
+)
+
+func init() {
+	SetLogRFC3339()
+}
+
 func main() {
 	var (
 		jsonFormat bool
 		output     string
 		inputs     []string
 		err        error
+		start      time.Time
 		ct         *Counter
 	)
 
@@ -60,6 +70,7 @@ func main() {
 	}
 
 	/// run
+	start = time.Now()
 	wg := new(sync.WaitGroup)
 	go func() {
 		for i := range inputs {
@@ -76,6 +87,7 @@ func main() {
 	if err = ct.Output(output, jsonFormat); err != nil {
 		log.Fatalln(err)
 	}
+	log.Printf("fastq count elapsed: %v\n", time.Since(start))
 }
 
 func ReadBlocks(input string, ct *Counter, wg *sync.WaitGroup) {
@@ -86,7 +98,7 @@ func ReadBlocks(input string, ct *Counter, wg *sync.WaitGroup) {
 		ci  *CmdInput
 	)
 
-	log.Printf("fastq_count read sequences from %s\n", input)
+	log.Printf("fastq count input: %q\n", input)
 	if ci, err = NewCmdInput(input); err != nil {
 		log.Println(err)
 		return
@@ -95,18 +107,18 @@ func ReadBlocks(input string, ct *Counter, wg *sync.WaitGroup) {
 	i := 0
 	for ci.Scanner.Scan() {
 		i++
-		if i%4 == 2 {
+		switch i % 4 {
+		case 2:
 			text := ci.Scanner.Text()
-			ct.ch1 <- text
-			ct.ch2 <- text
-		} else if i%4 == 0 {
-			ct.ch3 <- ci.Scanner.Text()
+			ct.ch1 <- &text
+		case 0:
+			text := ci.Scanner.Text()
+			ct.ch2 <- &text
 		}
 	}
 
 	close(ct.ch1)
 	close(ct.ch2)
-	close(ct.ch3)
 
 	ci.Close()
 }
@@ -122,16 +134,14 @@ type Counter struct {
 	Q20 int64 `json:"q20"`   // Q20 number
 	Q30 int64 `json:"q30"`   // Q30 number
 
-	ch1 chan string `json:"-"`
-	ch2 chan string `json:"-"`
-	ch3 chan string `json:"-"`
+	ch1 chan *string `json:"-"`
+	ch2 chan *string `json:"-"`
 }
 
 func NewCounter() (counter *Counter) {
 	counter = new(Counter)
-	counter.ch1 = make(chan string, 10)
-	counter.ch2 = make(chan string, 10)
-	counter.ch3 = make(chan string, 10)
+	counter.ch1 = make(chan *string, 100)
+	counter.ch2 = make(chan *string, 100)
 
 	return counter
 }
@@ -165,27 +175,21 @@ func (ct *Counter) Write(wt io.Writer, jsonFormat bool) {
 
 func (ct *Counter) Counting() {
 	wg := new(sync.WaitGroup)
-	wg.Add(3)
+	wg.Add(2)
 
 	go func() {
 		for k := range ct.ch1 {
 			ct.RN++
-			ct.BN += int64(len(k))
+			ct.BN += int64(len(*k))
+			ct.NN += int64(strings.Count(*k, "N"))
+			ct.GC += int64(strings.Count(*k, "G") + strings.Count(*k, "C"))
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		for k := range ct.ch2 {
-			ct.NN += int64(strings.Count(k, "N"))
-			ct.GC += int64(strings.Count(k, "G") + strings.Count(k, "C"))
-		}
-		wg.Done()
-	}()
-
-	go func() {
-		for k := range ct.ch3 {
-			for _, q := range k {
+			for _, q := range *k {
 				if int(q)-ct.Phred >= 20 {
 					ct.Q20++
 				} else {
@@ -264,4 +268,16 @@ func NewCmdInput(name string) (ci *CmdInput, err error) {
 	}
 
 	return
+}
+
+func SetLogRFC3339() {
+	log.SetFlags(0)
+	log.SetOutput(new(logWriter))
+}
+
+type logWriter struct{}
+
+func (writer *logWriter) Write(bts []byte) (int, error) {
+	// time.RFC3339
+	return fmt.Print(time.Now().Format(RFC3339ms) + "  " + string(bts))
 }
