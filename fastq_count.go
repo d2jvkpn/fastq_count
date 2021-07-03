@@ -27,8 +27,8 @@ Usage: fastq_count  [-phred value]  [-out tsv]  <input1.fastq input2.fastq.gz>
 
 const LISENSE = `
 author: d2jvkpn
-version: 1.1.0
-release: 2021-06-18
+version: 1.2.0
+release: 2021-07-04
 project: https://github.com/d2jvkpn/fastq_count
 lisense: GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html)
 `
