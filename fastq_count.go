@@ -129,7 +129,7 @@ type Counter struct {
 
 	RN  int64 `json:"reads"` // read number
 	BN  int64 `json:"bases"` // base number
-	NN  int64 `json:"n"`     // base number of N
+	NN  int64 `json:"nn"`    // base number of N
 	GC  int64 `json:"gc"`    // base number of G and C
 	Q20 int64 `json:"q20"`   // Q20 number
 	Q30 int64 `json:"q30"`   // Q30 number

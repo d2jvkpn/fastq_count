@@ -4,4 +4,4 @@ go 1.17
 
 require github.com/klauspost/pgzip v1.2.5
 
-require github.com/klauspost/compress v1.13.4 // indirect
+require github.com/klauspost/compress v1.13.5 // indirect
