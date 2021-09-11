@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/d2jvkpn/fastq_count/pkg/cmd"
 )
 
 const USAGE = `
@@ -25,12 +27,8 @@ project: https://github.com/d2jvkpn/fastq_count
 lisense: GPLv3 (https://www.gnu.org/licenses/gpl-3.0.en.html)
 `
 
-const (
-	RFC3339ms = "2006-01-02T15:04:05.000Z07:00"
-)
-
 func init() {
-	SetLogRFC3339()
+	cmd.SetLogRFC3339()
 }
 
 func main() {
@@ -80,16 +78,4 @@ func main() {
 		log.Fatalln(err)
 	}
 	log.Printf("fastq count elapsed: %v\n", time.Since(start))
-}
-
-func SetLogRFC3339() {
-	log.SetFlags(0)
-	log.SetOutput(new(logWriter))
-}
-
-type logWriter struct{}
-
-func (writer *logWriter) Write(bts []byte) (int, error) {
-	// time.RFC3339
-	return fmt.Print(time.Now().Format(RFC3339ms) + "  " + string(bts))
 }
