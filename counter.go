@@ -14,7 +14,11 @@ import (
 )
 
 func ReadBlocks(input string, ct *Counter, wg *sync.WaitGroup) {
-	defer wg.Done()
+	defer func() {
+		if wg != nil {
+			wg.Done()
+		}
+	}()
 
 	var (
 		err error
@@ -61,10 +65,13 @@ type Counter struct {
 	ch2 chan *string `json:"-"`
 }
 
-func NewCounter() (counter *Counter) {
+func NewCounter(phreds ...int) (counter *Counter) {
 	counter = new(Counter)
 	counter.ch1 = make(chan *string, 100)
 	counter.ch2 = make(chan *string, 100)
+	if len(phreds) > 0 {
+		counter.Phred = phreds[0]
+	}
 
 	return counter
 }
